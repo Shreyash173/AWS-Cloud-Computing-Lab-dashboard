@@ -1,0 +1,63 @@
+# ================================================================
+# AWS Cloud Computing Lab #2  —  docker-compose.yml
+# Runs the Flask frontend and Redis backend as separate containers
+# on a shared internal network.
+# ================================================================
+
+services:
+
+  # ------------------------------------------------------------------
+  # Frontend: Flask web application
+  # ------------------------------------------------------------------
+  frontend:
+    build:
+      context: .          # Docker build context = project root
+      dockerfile: Dockerfile
+    container_name: lab2-frontend
+    ports:
+      - "5000:5000"       # Access the app at http://localhost:5000
+    environment:
+      # 'redis' is the Compose service name — Docker resolves it
+      # to the redis container's IP automatically.
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      redis:
+        condition: service_healthy   # wait until Redis passes its health check
+    networks:
+      - lab2-network
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # Backend: Redis database
+  # ------------------------------------------------------------------
+  redis:
+    image: redis:7.2-alpine          # official lightweight Redis image
+    container_name: lab2-redis
+    # No port mapping — Redis is only reachable inside the Docker network.
+    # This is safer: Redis is never exposed to the host machine.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - lab2-network
+    restart: unless-stopped
+    # Persist Redis data so visit counts survive container restarts
+    volumes:
+      - redis-data:/data
+
+# ------------------------------------------------------------------
+# Named volume for Redis persistence
+# ------------------------------------------------------------------
+volumes:
+  redis-data:
+
+# ------------------------------------------------------------------
+# Shared network — both containers can talk to each other by name
+# ------------------------------------------------------------------
+networks:
+  lab2-network:
+    driver: bridge
